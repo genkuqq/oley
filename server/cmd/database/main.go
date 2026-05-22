@@ -7,6 +7,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/uintptr/goley-server/cmd/types"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Database struct {
@@ -45,13 +46,16 @@ func (db *Database) CheckTables() {
 // Register new user to database.
 //
 // If player creation failed function returns error message otherwise error is nil
-
-// TODO: hash password
 func (db *Database) RegisterUser(username string, password string) error {
-	_, err := db.DB.Exec(`
+	//10 default hash cost
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		fmt.Println("Player: ", username, " register error: Password hash.")
+	}
+	_, err = db.DB.Exec(`
 		INSERT INTO users (username, password)
 		VALUES ($1, $2)
-		`, username, password)
+		`, username, hash)
 	if err != nil {
 		fmt.Println("User: ", username, " register function error")
 		return err

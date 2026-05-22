@@ -15,7 +15,6 @@ import (
 
 	"github.com/uintptr/goley-server/cmd/database"
 	"github.com/uintptr/goley-server/internal/proudnet"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const defaultAddr = "0.0.0.0:2270"
@@ -27,8 +26,6 @@ var (
 func main() {
 	db := database.ConnectDatabase()
 	db.CheckTables()
-	// db.RegisterUser("ahmet", "mehmet")
-	db.GetUser("ahmet", "mehmet")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	slog.SetDefault(log)
 
@@ -61,14 +58,7 @@ func registerHandlers(s *proudnet.Server, log *slog.Logger) {
 		password, _ := body.ReadString()
 		log.Info("RequestRegister", " id: ", gamerID, " pw_len: ", len(password))
 
-		//10 default hash cost
-		hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
-		if err != nil {
-			log.Error("Player: ", gamerID, " register error: Password hash.")
-			resp := proudnet.NewMessage()
-			return c.Send(proudnet.EntryS2C_NotifyCreateNewGamerFailed, resp)
-		}
-		err = db.RegisterUser(gamerID, string(hash))
+		err = db.RegisterUser(gamerID, password)
 		if err != nil {
 			log.Error("Player: ", gamerID, " database register error.")
 			resp := proudnet.NewMessage()
@@ -86,7 +76,13 @@ func registerHandlers(s *proudnet.Server, log *slog.Logger) {
 		password, _ := body.ReadString()
 		log.Info("RequestLogin", "id", gamerID, "pw_len", len(password))
 		// NotifyLoginOk (Goley) -- gamerGuid + credential
-
+		// TODO Create a user struct after this for sanity checks like for EntryC2S_RequestHeroSlots etc. requests
+		_, err = db.GetUser(gamerID, password)
+		if err != nil {
+			log.Info("RequestLogin", "id", gamerID, "pw_len", len(password))
+			resp := proudnet.NewMessage()
+			return c.Send(proudnet.EntryS2C_NotifyLoginFailed, resp)
+		}
 		resp := proudnet.NewMessage()
 		resp.WriteBytes(makeFakeGuid(gamerID))
 		resp.WriteBytes(makeFakeGuid("cred_" + gamerID))
